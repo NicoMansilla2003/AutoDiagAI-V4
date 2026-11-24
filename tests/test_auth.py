@@ -9,11 +9,13 @@ from services.auth_service import (
     RateLimited,
     bootstrap_first_admin,
     initialize_auth_db,
+    listar_usuarios,
     login,
     logout,
     normalize_email,
     register_user,
     resolve_session,
+    cambiar_estado_usuario,
 )
 
 
@@ -102,6 +104,26 @@ class AuthTests(unittest.TestCase):
         with history.obtener_conexion() as conn:
             roles = [row[0] for row in conn.execute("SELECT role FROM users ORDER BY id")]
         self.assertEqual(roles, ["user", "admin"])
+
+    def test_admin_account_management_and_session_revocation(self):
+        member, member_token = self.register()
+        bootstrap_first_admin("admin@example.com", "Admin secure password 123!")
+        _, admin_token = login("admin@example.com", "Admin secure password 123!")
+        self.assertEqual(len(listar_usuarios(admin_token)), 2)
+        with self.assertRaises(PermissionError):
+            listar_usuarios(member_token)
+        cambiar_estado_usuario(admin_token, member["id"], False)
+        self.assertIsNone(resolve_session(member_token))
+        with self.assertRaises(AuthError):
+            login("one@example.com", "Long enough pass 123!")
+        cambiar_estado_usuario(admin_token, member["id"], True)
+        self.assertTrue(next(row for row in listar_usuarios(admin_token) if row["id"] == member["id"])["is_active"])
+
+    def test_admin_cannot_disable_self_or_last_admin(self):
+        bootstrap_first_admin("admin@example.com", "Admin secure password 123!")
+        admin, admin_token = login("admin@example.com", "Admin secure password 123!")
+        with self.assertRaises(AuthError):
+            cambiar_estado_usuario(admin_token, admin["id"], False)
 
 
 if __name__ == "__main__":

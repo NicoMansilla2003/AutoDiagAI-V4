@@ -788,6 +788,15 @@ V4 agrega cuentas públicas con correo y contraseña, hash Argon2id, cierre de s
 sesiones revocables con vencimiento, limitación de intentos y roles `user`/`admin`.
 El registro público siempre crea el rol `user`.
 
+### Gestión de cuentas
+
+Al iniciar sesión como administrador aparece **Gestión de usuarios** en el menú.
+La vista muestra nombre, correo, rol, estado, fecha de creación y cantidad de
+diagnósticos. El administrador puede activar o desactivar cuentas; al desactivarlas
+se revocan todas sus sesiones activas. La vista no permite promover usuarios a
+administrador ni desactivar al último administrador activo. La autorización se
+comprueba también en el servicio, no solo en la interfaz.
+
 ### Primer administrador
 
 Después de instalar las dependencias, crea el primer administrador desde una terminal

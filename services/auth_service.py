@@ -205,6 +205,50 @@ def logout(token: str | None) -> None:
         )
 
 
+def listar_usuarios(session_token: str | None) -> list[dict]:
+    """List accounts and per-user diagnostic counts for an active admin only."""
+    actor = resolve_session(session_token)
+    if actor is None or actor["role"] != "admin":
+        raise PermissionError("Se requiere una sesión de administrador.")
+    with obtener_conexion() as conn:
+        rows = conn.execute(
+            """SELECT u.id,u.display_name,u.email,u.role,u.is_active,u.created_at,
+                      COUNT(d.id) AS diagnostic_count
+               FROM users u LEFT JOIN diagnosticos d ON d.user_id=u.id
+               GROUP BY u.id ORDER BY u.created_at DESC"""
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def cambiar_estado_usuario(session_token: str | None, user_id: int, active: bool) -> None:
+    """Activate/deactivate an account and revoke its sessions when disabling it."""
+    actor = resolve_session(session_token)
+    if actor is None or actor["role"] != "admin":
+        raise PermissionError("Se requiere una sesión de administrador.")
+    active = bool(active)
+    with obtener_conexion() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        target = conn.execute(
+            "SELECT id,role,is_active FROM users WHERE id=?", (user_id,)
+        ).fetchone()
+        if target is None:
+            raise AuthError("No se encontró esa cuenta.")
+        if not active and user_id == actor["id"]:
+            raise AuthError("No puedes desactivar tu propia cuenta.")
+        if not active and target["role"] == "admin":
+            admin_count = conn.execute(
+                "SELECT COUNT(*) FROM users WHERE role='admin' AND is_active=1"
+            ).fetchone()[0]
+            if admin_count <= 1:
+                raise AuthError("No se puede desactivar al último administrador activo.")
+        conn.execute("UPDATE users SET is_active=? WHERE id=?", (int(active), user_id))
+        if not active:
+            conn.execute(
+                "UPDATE auth_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL",
+                (utc_now().isoformat(), user_id),
+            )
+
+
 def bootstrap_first_admin(email: str, password: str, display_name: str = "Administrador") -> None:
     """Create the first admin once; no public registration path can grant this role."""
     normalized = normalize_email(email)

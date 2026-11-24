@@ -36,6 +36,9 @@ from services.history import (
 from services.auth_service import (
     initialize_auth_db,
     resolve_session,
+    listar_usuarios,
+    cambiar_estado_usuario,
+    AuthError,
 )
 
 from tools.maintenance import (
@@ -654,17 +657,21 @@ with st.sidebar:
     )
 
 
+    paginas = [
+        "🚗 Nuevo diagnóstico",
+        "🕘 Historial de diagnósticos",
+        "🔧 Mantenimiento",
+        "📚 Conocimiento técnico",
+        "⚙️ Configuración",
+    ]
+    if usuario_actual["role"] == "admin":
+        paginas.append("👥 Gestión de usuarios")
+
     pagina = st.radio(
 
         "Navegación",
 
-        [
-            "🚗 Nuevo diagnóstico",
-            "🕘 Historial de diagnósticos",
-            "🔧 Mantenimiento",
-            "📚 Conocimiento técnico",
-            "⚙️ Configuración"
-        ],
+        paginas,
 
         label_visibility="collapsed"
     )
@@ -2442,3 +2449,42 @@ elif pagina == "⚙️ Configuración":
         </div>
         """
     )
+
+elif pagina == "👥 Gestión de usuarios":
+    # Service-level authorization is repeated here; hiding the navigation item
+    # is only a presentation choice, not an access control.
+    try:
+        cuentas = listar_usuarios(st.session_state.auth_token)
+    except PermissionError:
+        st.error("Se requiere una sesión de administrador.")
+        st.stop()
+
+    st.title("Gestión de usuarios")
+    st.caption("Desactivar una cuenta revoca sus sesiones activas.")
+    if cuentas:
+        filas = [
+            {
+                "Nombre": row["display_name"],
+                "Correo": row["email"],
+                "Rol": row["role"],
+                "Estado": "Activa" if row["is_active"] else "Desactivada",
+                "Diagnósticos": row["diagnostic_count"],
+                "Creada": row["created_at"],
+            }
+            for row in cuentas
+        ]
+        st.dataframe(filas, use_container_width=True, hide_index=True)
+        targets = {f"{row['display_name']} · {row['email']}": row for row in cuentas}
+        selected = st.selectbox("Selecciona una cuenta", list(targets))
+        target = targets[selected]
+        next_active = not bool(target["is_active"])
+        action = "Activar cuenta" if next_active else "Desactivar cuenta"
+        if st.button(action, disabled=(target["id"] == usuario_actual["id"] and not next_active)):
+            try:
+                cambiar_estado_usuario(st.session_state.auth_token, target["id"], next_active)
+                st.success("Estado de la cuenta actualizado.")
+                st.rerun()
+            except AuthError as error:
+                st.error(str(error))
+    else:
+        st.info("Todavía no hay cuentas registradas.")
