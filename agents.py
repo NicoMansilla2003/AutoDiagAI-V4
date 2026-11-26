@@ -1,4 +1,5 @@
 from crewai import Agent
+from services.agent_observability import iteration_limit_callback
 
 from llm_config import (
     crear_llm,
@@ -52,11 +53,13 @@ def crear_agente_mecanico():
     max_tokens=250
 ),
 
-        verbose=True,
+        verbose=False,
 
         allow_delegation=False,
 
-        max_iter=5
+        max_iter=5,
+        max_execution_time=120,
+        step_callback=iteration_limit_callback("mechanic", 5),
     )
 
 
@@ -94,11 +97,13 @@ def crear_agente_investigador():
     max_tokens=200
 ),
 
-        verbose=True,
+        verbose=False,
 
         allow_delegation=False,
 
-        max_iter=5
+        max_iter=5,
+        max_execution_time=120,
+        step_callback=iteration_limit_callback("researcher", 5),
     )
 
 
@@ -132,11 +137,13 @@ def crear_agente_seguridad():
     max_tokens=180
 ),
 
-        verbose=True,
+        verbose=False,
 
         allow_delegation=False,
 
-        max_iter=5
+        max_iter=5,
+        max_execution_time=120,
+        step_callback=iteration_limit_callback("safety_reviewer", 5),
     )
 
 
@@ -170,12 +177,14 @@ def crear_agente_sintetizador():
         ),
 
         llm=crear_llm_json(
-            max_tokens=700
+            max_tokens=500
         ),
 
-        verbose=True,
+        verbose=False,
 
         allow_delegation=False,
 
-        max_iter=3
+        max_iter=3,
+        max_execution_time=120,
+        step_callback=iteration_limit_callback("synthesizer", 3),
     )

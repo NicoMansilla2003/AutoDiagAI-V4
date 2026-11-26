@@ -1,4 +1,7 @@
 import json
+import logging
+import time
+import uuid
 
 from crewai import Crew, Process
 from pydantic import ValidationError
@@ -30,6 +33,10 @@ from tasks import (
     crear_tarea_seguridad,
     crear_tarea_sintesis
 )
+from services.request_limits import validate_input_length
+from services.structured_logging import set_trace_id, reset_trace_id
+
+logger = logging.getLogger(__name__)
 
 
 # =========================================================
@@ -171,8 +178,28 @@ def extraer_json(
 # =========================================================
 
 def ejecutar_diagnostico(
-    consulta: str
+    consulta: str,
+    *,
+    trace_id: str | None = None,
 ):
+
+    validate_input_length(consulta)
+    active_trace_id = trace_id or uuid.uuid4().hex
+    trace_token = set_trace_id(active_trace_id)
+    started = time.monotonic()
+    logger.info("diagnostic_started")
+
+    try:
+        return _ejecutar_diagnostico(consulta)
+    except Exception:
+        logger.exception("diagnostic_failed")
+        raise
+    finally:
+        logger.info("diagnostic_finished", extra={"duration_ms": round((time.monotonic() - started) * 1000)})
+        reset_trace_id(trace_token)
+
+
+def _ejecutar_diagnostico(consulta: str):
 
     # =====================================================
     # 1. GUARDRAIL DE DOMINIO
@@ -293,7 +320,7 @@ def ejecutar_diagnostico(
 
         process=Process.sequential,
 
-        verbose=True
+        verbose=False
     )
 
 

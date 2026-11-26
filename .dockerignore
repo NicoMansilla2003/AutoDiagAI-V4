@@ -1,0 +1,16 @@
+.git
+.venv
+.uv-cache/
+__pycache__
+*.py[cod]
+.env
+.env.*
+!.env.example
+secrets/
+data/*.db
+data/*.sqlite*
+chroma_db/
+rag/chroma_db/
+.streamlit/secrets.toml
+*.log
+tests/

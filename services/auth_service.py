@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import logging
 import re
 import secrets
 import sqlite3
@@ -14,8 +15,10 @@ from argon2 import PasswordHasher, Type
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 
 from services.history import inicializar_db, obtener_conexion
+from services.structured_logging import configure_logging
 
 PASSWORD_HASHER = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=2, type=Type.ID)
+logger = logging.getLogger(__name__)
 MAX_LOGIN_FAILURES = 5
 LOGIN_WINDOW_MINUTES = 15
 SESSION_TTL_HOURS = 12
@@ -269,6 +272,7 @@ def bootstrap_first_admin(email: str, password: str, display_name: str = "Admini
 
 
 def _bootstrap_cli() -> None:
+    configure_logging()
     parser = argparse.ArgumentParser(description="Bootstrap seguro del primer administrador de AutoDiag AI V4.")
     parser.add_argument("command", choices=["bootstrap-admin"])
     parser.add_argument("--email", required=True)
@@ -281,7 +285,7 @@ def _bootstrap_cli() -> None:
     if password != confirmation:
         parser.error("Las contraseñas no coinciden.")
     bootstrap_first_admin(args.email, password, args.name)
-    print("Administrador inicial creado.")
+    logger.info("initial_admin_created")
 
 
 if __name__ == "__main__":

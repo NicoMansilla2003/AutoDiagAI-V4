@@ -1,7 +1,18 @@
 from html import escape
 from textwrap import dedent
+import logging
+import uuid
 
 import streamlit as st
+
+from services.structured_logging import configure_logging, set_trace_id, reset_trace_id
+from services.request_limits import (
+    consume_diagnostic_request,
+    validate_input_length,
+)
+
+configure_logging()
+logger = logging.getLogger(__name__)
 
 from crew import (
     ejecutar_diagnostico
@@ -879,7 +890,6 @@ if pagina == "🚗 Nuevo diagnóstico":
             )
 
         else:
-
             mostrar_agentes(
                 "ready"
             )
@@ -901,6 +911,13 @@ if pagina == "🚗 Nuevo diagnóstico":
 
 
         else:
+
+            try:
+                validate_input_length(consulta)
+                consume_diagnostic_request(usuario_actual["id"])
+            except ValueError as error:
+                st.warning(str(error))
+                st.stop()
 
 
             datos_vehiculo = []
@@ -961,6 +978,8 @@ if pagina == "🚗 Nuevo diagnóstico":
                     + consulta.strip()
                 )
 
+
+            trace_id = uuid.uuid4().hex
 
             try:
 
@@ -1041,11 +1060,15 @@ if pagina == "🚗 Nuevo diagnóstico":
                 ):
 
 
-                    resultado = (
-                        ejecutar_diagnostico(
-                            consulta_completa
+                    trace_token = set_trace_id(trace_id)
+                    logger.info("diagnostic_request_accepted")
+                    try:
+                        resultado = ejecutar_diagnostico(
+                            consulta_completa,
+                            trace_id=trace_id,
                         )
-                    )
+                    finally:
+                        reset_trace_id(trace_token)
 
 
                 # =========================================
@@ -1148,7 +1171,12 @@ if pagina == "🚗 Nuevo diagnóstico":
             # OTROS ERRORES
             # =================================================
 
-            except Exception as error:
+            except Exception:
+
+                logger.exception(
+                    "diagnostic_request_failed",
+                    extra={"trace_id": trace_id},
+                )
 
 
                 st.session_state.diagnostico_ejecutado = (
@@ -1170,17 +1198,9 @@ if pagina == "🚗 Nuevo diagnóstico":
 
 
                 st.error(
-                    "No fue posible completar el diagnóstico."
+                    "No fue posible completar el diagnóstico. "
+                    f"Código de seguimiento: {trace_id}"
                 )
-
-
-                with st.expander(
-                    "Ver detalles técnicos"
-                ):
-
-                    st.code(
-                        str(error)
-                    )
 
 
     # =====================================================

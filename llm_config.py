@@ -39,7 +39,9 @@ def crear_llm(
         model="groq/openai/gpt-oss-120b",
         temperature=0,
         max_tokens=max_tokens,
-        reasoning_effort=reasoning_effort
+        reasoning_effort=reasoning_effort,
+        timeout=60,
+        max_retries=1
     )
 
 
@@ -64,6 +66,8 @@ def crear_llm_json(
         temperature=0,
         max_tokens=max_tokens,
         reasoning_effort=reasoning_effort,
+        timeout=60,
+        max_retries=1,
 
         # Fuerza una respuesta JSON válida
         response_format={

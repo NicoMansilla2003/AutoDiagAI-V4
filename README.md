@@ -826,3 +826,50 @@ de recuperación. SQLite requiere un único proceso/escritor y almacenamiento pe
 para varias instancias o alto tráfico se debe migrar a una base de datos servidor y
 revisar el modelo de sesión. No uses `.env`, tokens, secretos ni bases con datos personales
 en commits o imágenes de despliegue.
+
+### Refuerzos incorporados para la evaluación
+
+- CrewAI limita las iteraciones (`max_iter=5`, y `3` en síntesis), acota cada agente
+  a 120 segundos y registra cuando se alcanza el techo de iteraciones.
+- El inicio de sesión ya limita intentos fallidos. Además, los diagnósticos se limitan
+  por cuenta (5 por minuto por defecto) y a 4000 caracteres por consulta. Se pueden
+  ajustar con `AUTODIAG_REQUESTS_PER_MINUTE` y `AUTODIAG_MAX_INPUT_CHARS`.
+- Las entradas del usuario se escapan y se enmarcan como datos no confiables en cada
+  tarea. Esto reduce la confusión de instrucciones, pero no garantiza eliminar toda
+  inyección de prompt.
+- Las llamadas al modelo tienen timeout de 60 segundos, un reintento máximo y topes
+  de salida. Los eventos de inicio, error y duración se registran como JSON con
+  `trace_id`; no se deben registrar prompts, contraseñas ni tokens.
+- El proyecto usa CrewAI para la orquestación y LangChain para RAG; no depende de
+  LangGraph. No hay una conversación reanudable que requiera checkpointing en este
+  flujo de diagnóstico de una sola ejecución. Si luego se adopta LangGraph, se debe
+  diseñar persistencia aislada por usuario antes de habilitarla.
+
+### Contenedor y HTTPS para una demostración
+
+El `Dockerfile` fija Python 3.12, instala desde `uv.lock`, ejecuta como usuario no root
+y consulta el endpoint de salud de Streamlit. `compose.yaml` añade Caddy, que sirve
+HTTPS automático al dominio indicado y añade HSTS, CSP y otras cabeceras. Antes de
+arrancarlo en AWS, se requiere un dominio con DNS apuntando a la IP pública, reglas
+de entrada TCP 80/443 en el grupo de seguridad y una instancia activa. Streamlit solo
+queda accesible dentro de la red privada de Docker.
+
+En el equipo o instancia, crea `.env` copiando `.env.example`, reemplaza la clave
+Groq por una real y define `AUTODIAG_DOMAIN`. No guardes `.env` en Git. Luego ejecuta:
+
+```powershell
+docker compose up -d --build
+docker compose ps
+```
+
+Comprueba `https://tu-dominio/` y `docker compose logs app proxy`. Si cambias la CSP y
+la interfaz deja de cargar, inspecciona la consola del navegador y ajusta la política
+con pruebas; no elimines HTTPS ni HSTS como solución. Caddy necesita salida a Internet
+para obtener y renovar el certificado. El volumen de Chroma, SQLite y caché del modelo
+persiste entre reinicios; respáldalo y protégelo como dato privado. En AWS Academy,
+detén o elimina los recursos facturables cuando termine la práctica.
+
+Este Compose es una base reproducible para una demostración de curso, no una garantía
+de seguridad de producción. La CSP es una política inicial y requiere validación con
+la interfaz Streamlit. La URL pública, DNS, reglas de red y certificado no se pueden
+confirmar desde el repositorio: deben comprobarse en el entorno AWS activo.
